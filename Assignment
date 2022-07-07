@@ -1,0 +1,111 @@
+Assignment REPLICA SET
+Replica set is a watcher --> ensures a POD is up and running always --> can be scaled in or scaled out
+Daemon Set --> runs on mostly all PODs --> DS creates PODs in all nodes that are available --> used for monitoring the disk health status of available nodes --> 
+the DS uses node selector to know in which node the POD is running
+e.g, calico node 
+
+
+Assignment DEPLOYMENT
+-->[root@ip-172-31-25-53 09-deployments]# vi kubia-deployment-and-service-v1.yaml --> set replicas: 1
+-->[root@ip-172-31-25-53 09-deployments]# kubectl apply -f kubia-deployment-and-service-v1.yaml
+[root@ip-172-31-25-53 09-deployments]# kubectl get po
+NAME                     READY   STATUS    RESTARTS   AGE
+kubia-59d857b444-nckhz   1/1     Running   0          10s
+[root@ip-172-31-25-53 09-deployments]# kubectl get deploy
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+kubia   1/1     1            1           40s
+[root@ip-172-31-25-53 09-deployments]#  kubectl describe deploy kubia
+Replicas:               1 desired | 1 updated | 1 total | 1 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+ nodejs:
+    Image:        luksa/kubia:v1
+[root@ip-172-31-25-53 09-deployments]# kubectl patch deployment kubia -p '{"spec": {"minReadySeconds": 10}}'
+MinReadySeconds:        10
+[root@ip-172-31-25-53 09-deployments]# kubectl set image deployment kubia nodejs=luksa/kubia:v999
+deployment.apps/kubia image updated
+[root@ip-172-31-25-53 09-deployments]# kubectl describe deploy kubia
+Containers:
+   nodejs:
+    Image:        luksa/kubia:v999
+[root@ip-172-31-25-53 09-deployments]# kubectl get po
+NAME                     READY   STATUS              RESTARTS   AGE
+kubia-59d857b444-nckhz   1/1     Running             0          7m50s
+kubia-6f6956559d-dvgsc   0/1     ContainerCreating   0          2s
+kubia-854cf6b56d-fwrbw   0/1     Terminating         0          2m29s
+
+[root@ip-172-31-25-53 09-deployments]# kubectl get po
+NAME                     READY   STATUS             RESTARTS   AGE
+kubia-59d857b444-nckhz   1/1     Running            0          8m20s
+kubia-6f6956559d-dvgsc   0/1     ImagePullBackOff   0          32s
+-->[root@ip-172-31-25-53 09-deployments]# kubectl get rs
+
+
+Assignment SERVICE
+
+[root@ip-172-31-25-53 05-services] cd kubernetes-training/05-services/
+[root@ip-172-31-25-53 05-services]# kubectl apply -f kubia-replicaset.yaml
+[root@ip-172-31-25-53 05-services]kubectl apply -f kubia-svc-nodeport.yaml
+
+1>[root@ip-172-31-25-53 05-services]# kubectl get po -o wide
+NAME          READY   STATUS    RESTARTS   AGE   IP                NODE                                              NOMINATED NODE   READINESS GATES
+kubia-bl6cw   1/1     Running   0          16s   192.168.166.250   ip-172-31-25-53.ap-southeast-1.compute.internal   <none>           <none>
+
+[root@ip-172-31-25-53 05-services]# curl  192.168.166.250:8000
+curl: (7) Failed to connect to 192.168.166.250 port 8000 after 0 ms: Connection refused
+[root@ip-172-31-25-53 05-services]# curl  192.168.166.250:8080
+You've hit kubia-bl6cw
+2>then will verify by accessing
+http://54.179.209.117:30123/
+
+
+Assigmnent VOTTING APP
+[root@ip-172-31-25-53 ~]# git clone https://github.com/ashishrpandey/example-voting-app
+[root@ip-172-31-25-53 ~]# cd example-voting-app/k8s-specifications/
+[root@ip-172-31-25-53 k8s-specifications]# kubectl apply -f .
+deployment.apps/db created
+service/db created
+[root@ip-172-31-25-53 k8s-specifications]# kubectl get all
+service/result       NodePort    10.99.127.242    <none>        5001:31001/TCP   102s -- check in browser http://54.179.209.117:31001/
+service/vote         NodePort    10.106.57.104    <none>        5000:31000/TCP   101s -- http://54.179.209.117:31000/
+
+[root@ip-172-31-25-53 k8s-specifications]# kubectl get po
+NAME                      READY   STATUS             RESTARTS   AGE
+result-5d57b59f4b-8d96v   1/1     Running            0          9m10s
+vote-94849dc97-7vwmd      1/1     Running            0          9m10s
+worker-dd46d7584-9r5g8    1/1     Running            0          9m9s
+[root@ip-172-31-25-53 k8s-specifications]# kubectl logs worker-dd46d7584-6ttr2
+Processing vote for 'a' by '1c8c0d5c116f6ab6'
+Processing vote for 'b' by '1c8c0d5c116f6ab6'
+
+[root@ip-172-31-25-53 k8s-specifications]# kubectl delete po vote-94849dc97-7vwmd
+pod "vote-94849dc97-7vwmd" deleted
+[root@ip-172-31-25-53 k8s-specifications]# kubectl get po
+vote-94849dc97-56mt9      1/1     Running            0          99s
+[root@ip-172-31-25-53 k8s-specifications]# kubectl get po
+result-5d57b59f4b-czh8m   1/1     Running            0          47s
+[root@ip-172-31-25-53 k8s-specifications]# kubectl delete po db-b54cd94f4-bpgpr
+pod "db-b54cd94f4-bpgpr" deleted
+[root@ip-172-31-25-53 k8s-specifications]# kubectl get po
+NAME                      READY   STATUS             RESTARTS   AGE
+db-b54cd94f4-kfnqs        1/1     Running            0          86s
+
+After deleting the voting app, the app did not get impacted, it showed new container id and result app worked like before.
+Now after deleting the result app, this app did not get impacted as it rebounced and it showed previous count and result.
+Similar observation for worker pod
+But when the db is deleted result app lost the old count
+
+with this result app did not get updated
+[root@ip-172-31-25-53 k8s-specifications]# kubectl logs result-5d57b59f4b-7rpxw
+Connected to db
+Error performing query: Error: This socket has been ended by the other party
+
+To fix this -- restart of result pod 
+[root@ip-172-31-25-53 k8s-specifications]# kubectl delete po result-5d57b59f4b-7rpxw
+pod "result-5d57b59f4b-7rpxw" deleted
+
+with this the result app worked fine, but the old data is lost
+
+
+
+
