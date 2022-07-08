@@ -58,6 +58,7 @@ You've hit kubia-bl6cw
 2>then will verify by accessing
 http://54.179.209.117:30123/
 
+Observation : pod listen on port 8080 (containerPort). So changed to port 8080 for it to work
 
 Assigmnent VOTTING APP
 [root@ip-172-31-25-53 ~]# git clone https://github.com/ashishrpandey/example-voting-app
@@ -106,6 +107,9 @@ pod "result-5d57b59f4b-7rpxw" deleted
 
 with this the result app worked fine, but the old data is lost
 
-
-
+OBSERVATIONS:
+After deleting the voting app--> the app did not get impacted, it showed new container id and result app worked like before.
+When the result app was deleted--> this app did not get impacted as it rebounced and it showed previous count and result as db pod was intact.
+Same observation for worker pod
+But when the db is deleted result app lost the old count
 
